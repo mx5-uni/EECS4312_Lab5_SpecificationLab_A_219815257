@@ -1,6 +1,6 @@
 ## TODO:
-## Student Name:
-## Student ID: 
+## Student Name: Anna Maximova
+## Student ID: 219815257
 
 # Meeting Slot Suggestion Lab Repository
 
