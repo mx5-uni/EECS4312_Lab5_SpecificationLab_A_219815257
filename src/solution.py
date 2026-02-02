@@ -1,5 +1,5 @@
-## Student Name:
-## Student ID: 
+## Student Name: Anna Maximova
+## Student ID: 219815257
 
 """
 Stub file for the meeting slot suggestion exercise.
@@ -27,4 +27,39 @@ def suggest_slots(
         List of valid start times as "HH:MM" sorted ascending
     """
     # TODO: Implement this function
-    raise NotImplementedError("suggest_slots function has not been implemented yet")
+    #raise NotImplementedError("suggest_slots function has not been implemented yet")
+
+
+    def to_minutes(t: str) -> int:
+        h, m = t.split(":")
+        return int(h) * 60 + int(m)
+
+    def to_time(m: int) -> str:
+        return f"{m // 60:02d}:{m % 60:02d}"
+
+    # Convert and sort events by start time
+    intervals = sorted(
+        [(to_minutes(e["start"]), to_minutes(e["end"])) for e in events],
+        key=lambda x: x[0]
+    )
+
+    available_slots = []
+    day_start = 0
+    day_end = 24 * 60
+
+    prev_end = day_start
+
+    for start, end in intervals:
+        if start - prev_end >= meeting_duration:
+            available_slots.append(
+                f"{to_time(prev_end)}-{to_time(start)}"
+            )
+        prev_end = max(prev_end, end)
+
+    # Check after last event
+    if day_end - prev_end >= meeting_duration:
+        available_slots.append(
+            f"{to_time(prev_end)}-{to_time(day_end)}"
+        )
+
+    return available_slots

@@ -1,5 +1,5 @@
-## Student Name:
-## Student ID: 
+## Student Name: Anna Maximova
+## Student ID: 219815257
 
 Prompt 1: "Copy paste your question"
 LLM Response 1: "Copy paste LLMs response"
@@ -8,3 +8,82 @@ LLM Response 1: "Copy paste LLMs response"
 Prompt 2: "Copy paste your question"
 LLM Response 2: "Copy paste LLMs response"
 --------------------------------------------------
+
+
+Prompt 1: python code a function that takes in as inputs: events: List[Dict[str, str]], meeting_duration: int, day: str and returns a List[str] the inputs are in the following form: events = [ {"start": "13:00", "end": "14:00"}, {"start": "09:30", "end": "10:00"}, {"start": "11:00", "end": "12:00"}, ] slots = suggest_slots(events, meeting_duration=30, day="2026-02-01") and suggest_slots is the name of the function. It should look through the given input list to find an appropriate time slot of the length provided and return it in the output list with no additional imports other than rom typing import List, Dict
+
+LLM Response 1:
+Here’s a clean, self-contained implementation that **only uses `from typing import List, Dict`** and makes minimal assumptions.
+
+**Assumptions (reasonable defaults):**
+
+* The day runs from **00:00 to 24:00**
+* Events may be unsorted
+* Times are `"HH:MM"` (24-hour)
+* The function returns **all available slots** of at least `meeting_duration`
+* Each slot is returned as `"HH:MM-HH:MM"`
+* `day` is included in the signature but not required for calculation
+
+```python
+from typing import List, Dict
+
+def suggest_slots(
+    events: List[Dict[str, str]],
+    meeting_duration: int,
+    day: str
+) -> List[str]:
+    def to_minutes(t: str) -> int:
+        h, m = t.split(":")
+        return int(h) * 60 + int(m)
+
+    def to_time(m: int) -> str:
+        return f"{m // 60:02d}:{m % 60:02d}"
+
+    # Convert and sort events by start time
+    intervals = sorted(
+        [(to_minutes(e["start"]), to_minutes(e["end"])) for e in events],
+        key=lambda x: x[0]
+    )
+
+    available_slots = []
+    day_start = 0
+    day_end = 24 * 60
+
+    prev_end = day_start
+
+    for start, end in intervals:
+        if start - prev_end >= meeting_duration:
+            available_slots.append(
+                f"{to_time(prev_end)}-{to_time(start)}"
+            )
+        prev_end = max(prev_end, end)
+
+    # Check after last event
+    if day_end - prev_end >= meeting_duration:
+        available_slots.append(
+            f"{to_time(prev_end)}-{to_time(day_end)}"
+        )
+
+    return available_slots
+```
+
+### Example
+
+```python
+events = [
+    {"start": "13:00", "end": "14:00"},
+    {"start": "09:30", "end": "10:00"},
+    {"start": "11:00", "end": "12:00"},
+]
+
+slots = suggest_slots(events, meeting_duration=30, day="2026-02-01")
+```
+
+If you want:
+
+* business hours only (e.g. 09:00–17:00)
+* only the **first** available slot
+* slots returned as start times only
+* slots tied to the `day` string
+
+say the word and I’ll tweak it fast ⚡
