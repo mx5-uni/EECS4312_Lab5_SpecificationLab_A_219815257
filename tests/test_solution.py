@@ -69,3 +69,18 @@ def test_lunch_break_blocks_all_slots_during_lunch():
 # note to self: run with python -m pytest -v
 
 
+def test_friday_meeting_can_end_at_15():
+    events = []
+    slots = suggest_slots(events, meeting_duration=60, day="2026-02-06")  # Friday
+
+    assert "14:00" in slots   # Ends at 15:00
+    assert "14:15" not in slots  # Would end at 15:15
+
+def test_friday_event_buffer_blocks_last_possible_slot():
+    events = [{"start": "13:00", "end": "13:45"}]
+    slots = suggest_slots(events, meeting_duration=60, day="2026-02-06")  # Friday
+
+    # Event blocks until 14:00 due to buffer
+    # 14:00–15:00 would normally fit, but is now the *last* valid slot
+    assert "14:00" in slots
+    assert "14:15" not in slots

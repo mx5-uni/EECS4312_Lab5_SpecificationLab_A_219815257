@@ -9,6 +9,7 @@ on a given day, taking into account working hours, and possible specific constra
 for full requirements.
 """
 from typing import List, Dict
+from datetime import datetime
 
 def suggest_slots(
     events: List[Dict[str, str]],
@@ -36,18 +37,29 @@ def suggest_slots(
     def to_time_str(minutes: int) -> str:
         return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
+    # Base working hours
     WORK_START = 9 * 60        # 09:00
     WORK_END = 17 * 60         # 17:00
+    FRIDAY_END = 15 * 60       # 15:00
     LUNCH_START = 12 * 60      # 12:00
     LUNCH_END = 13 * 60        # 13:00
     BUFFER = 15               # 15-minute buffer after events
 
+    # Detect Friday
+    try:
+        is_friday = datetime.fromisoformat(day).weekday() == 4
+    except ValueError:
+        is_friday = False
+
+    effective_work_end = FRIDAY_END if is_friday else WORK_END
+
+    # Normalize events
     busy_intervals = []
     for event in events:
         start = to_minutes(event["start"])
         end = to_minutes(event["end"]) + BUFFER
 
-        if end <= WORK_START or start >= WORK_END:
+        if end <= WORK_START or start >= effective_work_end:
             continue
 
         busy_intervals.append((start, end))
@@ -55,15 +67,15 @@ def suggest_slots(
     slots = []
     t = WORK_START
 
-    while t + meeting_duration <= WORK_END:
+    while t + meeting_duration <= effective_work_end:
         meeting_end = t + meeting_duration
 
-        # No starts during lunch
+        # Block lunch start times
         if LUNCH_START <= t < LUNCH_END:
             t += 15
             continue
 
-        # Check overlap with buffered events
+        # Check overlap with events
         for busy_start, busy_end in busy_intervals:
             if not (meeting_end <= busy_start or t >= busy_end):
                 break
@@ -76,54 +88,4 @@ def suggest_slots(
 
 
     
-    """ FIRST IMPLEMENTATION
-    def to_minutes(t: str) -> int:
-        h, m = map(int, t.split(":"))
-        return h * 60 + m
-
-    def to_time_str(minutes: int) -> str:
-        return f"{minutes // 60:02d}:{minutes % 60:02d}"
-
-    # Working hours and lunch break (in minutes)
-    WORK_START = 9 * 60       # 09:00
-    WORK_END = 17 * 60        # 17:00
-    LUNCH_START = 12 * 60     # 12:00
-    LUNCH_END = 13 * 60       # 13:00
-
-    # Normalize and filter events to working hours
-    busy_intervals = []
-    for event in events:
-        start = to_minutes(event["start"])
-        end = to_minutes(event["end"])
-
-        # Ignore events completely outside working hours
-        if end <= WORK_START or start >= WORK_END:
-            continue
-
-        busy_intervals.append((start, end))
-
-    slots = []
-
-    # Generate candidate start times in 15-minute increments
-    t = WORK_START
-    while t + meeting_duration <= WORK_END:
-        meeting_end = t + meeting_duration
-
-        # Block lunch start times
-        if LUNCH_START <= t < LUNCH_END:
-            t += 15
-            continue
-
-        # Check overlap with any event
-        overlaps = False
-        for busy_start, busy_end in busy_intervals:
-            if not (meeting_end <= busy_start or t >= busy_end):
-                overlaps = True
-                break
-
-        if not overlaps:
-            slots.append(to_time_str(t))
-
-        t += 15
-
-    return slots"""
+    

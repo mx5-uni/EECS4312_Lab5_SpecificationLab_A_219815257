@@ -421,3 +421,152 @@ If you want, I can also help you:
 * write your **own edge-case tests**
 * simplify overlap logic even further
 * or explain how graders usually hide trick cases like this 😉
+
+
+----------------------------------------------
+
+Prompt 4:
+
+there is now a new limitation given: meetings cannot be scheduled past 15:00 on fridays can you adjust the code of suggest slots to reflect this and create 2 test cases to test this (possibly being edge cases)
+
+LLM response 4:
+
+Nice, this is a very realistic “requirements keep changing” twist 😄
+Let’s do it cleanly and defensively.
+
+---
+
+## New rule (clarified)
+
+> **On Fridays, meetings must not end after 15:00.**
+
+That’s the safest interpretation:
+
+* A meeting **starting at 15:00** with duration > 0 is invalid.
+* A meeting **ending exactly at 15:00** is valid.
+
+---
+
+## Implementation changes
+
+We’ll:
+
+1. Detect whether `day` is a Friday (the tests already pass full dates like `"2026-02-01"`).
+2. Adjust the effective working end time **only for Fridays**.
+
+### Updated `suggest_slots`
+
+```python
+from typing import List, Dict
+from datetime import datetime
+
+def suggest_slots(
+    events: List[Dict[str, str]],
+    meeting_duration: int,
+    day: str
+) -> List[str]:
+
+    def to_minutes(t: str) -> int:
+        h, m = map(int, t.split(":"))
+        return h * 60 + m
+
+    def to_time_str(minutes: int) -> str:
+        return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+    # Base working hours
+    WORK_START = 9 * 60        # 09:00
+    WORK_END = 17 * 60         # 17:00
+    FRIDAY_END = 15 * 60       # 15:00
+    LUNCH_START = 12 * 60      # 12:00
+    LUNCH_END = 13 * 60        # 13:00
+    BUFFER = 15               # 15-minute buffer after events
+
+    # Detect Friday
+    try:
+        is_friday = datetime.fromisoformat(day).weekday() == 4
+    except ValueError:
+        is_friday = False
+
+    effective_work_end = FRIDAY_END if is_friday else WORK_END
+
+    # Normalize events
+    busy_intervals = []
+    for event in events:
+        start = to_minutes(event["start"])
+        end = to_minutes(event["end"]) + BUFFER
+
+        if end <= WORK_START or start >= effective_work_end:
+            continue
+
+        busy_intervals.append((start, end))
+
+    slots = []
+    t = WORK_START
+
+    while t + meeting_duration <= effective_work_end:
+        meeting_end = t + meeting_duration
+
+        # Block lunch start times
+        if LUNCH_START <= t < LUNCH_END:
+            t += 15
+            continue
+
+        # Check overlap with events
+        for busy_start, busy_end in busy_intervals:
+            if not (meeting_end <= busy_start or t >= busy_end):
+                break
+        else:
+            slots.append(to_time_str(t))
+
+        t += 15
+
+    return slots
+```
+
+---
+
+## New test cases (edge-focused)
+
+### 1️⃣ Meeting ending exactly at 15:00 on Friday (allowed)
+
+```python
+def test_friday_meeting_can_end_at_15():
+    events = []
+    slots = suggest_slots(events, meeting_duration=60, day="2026-02-06")  # Friday
+
+    assert "14:00" in slots   # Ends at 15:00
+    assert "14:15" not in slots  # Would end at 15:15
+```
+
+---
+
+### 2️⃣ Event buffer + Friday cutoff interaction
+
+```python
+def test_friday_event_buffer_blocks_last_possible_slot():
+    events = [{"start": "13:00", "end": "13:45"}]
+    slots = suggest_slots(events, meeting_duration=60, day="2026-02-06")  # Friday
+
+    # Event blocks until 14:00 due to buffer
+    # 14:00–15:00 would normally fit, but is now the *last* valid slot
+    assert "14:00" in slots
+    assert "14:15" not in slots
+```
+
+---
+
+## Why this is robust
+
+* Doesn’t affect Mon–Thu behavior at all
+* Uses **meeting end time**, not start time, for the Friday rule
+* Cleanly composes with:
+
+  * lunch break
+  * buffers
+  * working hours
+  * unsorted events
+
+If you want, next we can:
+
+* refactor this into smaller helper functions (very testable),
+* or add parameterized pytest cases to shrink the test suite.
